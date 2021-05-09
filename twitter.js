@@ -37,13 +37,22 @@ const defaults = {
 // However, some endpoints expect a JSON payload - https://developer.twitter.com/en/docs/direct-messages/sending-and-receiving/api-reference/new-event
 // It appears that JSON payloads don't need to be included in the signature,
 // because sending DMs works without signing the POST body
-const JSON_ENDPOINTS = [
-  'direct_messages/events/new',
-  'direct_messages/welcome_messages/new',
-  'direct_messages/welcome_messages/rules/new',
-  'media/metadata/create',
-  'collections/entries/curate',
-];
+function jsonEncoded(resource) {
+  const ch = resource.charAt(0);
+  if (ch === "c") {
+    return resource === "collections/entries/curate";
+  } else if (ch === "d") {
+    return resource === "direct_messages/events/new"
+      || resource === "direct_messages/welcome_messages/new"
+      || resource === "direct_messages/welcome_messages/rules/new";
+  } else if (ch === "m") {
+    return resource === "media/metadata/create";
+  } else if (ch === "t") {
+    return resource.startsWith("tweets/search/");
+  } else {
+    return false;
+  }
+}
 
 const baseHeaders = {
   'Content-Type': 'application/json',
@@ -252,14 +261,15 @@ class Twitter {
    *   The `_header` property will be set to the Response headers (useful for checking rate limits)
    */
   post(resource, body) {
+    const json = jsonEncoded(resource);
     const { requestData, headers } = this._makeRequest(
       'POST',
       resource,
-      JSON_ENDPOINTS.includes(resource) ? null : body, // don't sign JSON bodies; only parameters
+      json ? null : body, // don't sign JSON bodies; only parameters
     );
 
     const postHeaders = Object.assign({}, baseHeaders, headers);
-    if (JSON_ENDPOINTS.includes(resource)) {
+    if (json) {
       body = JSON.stringify(body);
     } else {
       body = percentEncode(querystring.stringify(body));
